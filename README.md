@@ -30,18 +30,42 @@ if err != nil {
 }
 defer client.Close()
 
-obj, err := client.GetObject(ctx, "0x123...", nil)
+obj, err := client.GetObject(ctx, "0x72f5c6eef73d77de271886219a2543e7c29a33de19a6c69c5cf1899f729c3f17", nil)
 if err != nil {
     log.Fatal(err)
 }
 fmt.Println("object version", obj.GetVersion())
+
+tx, err := client.GetTransaction(ctx, "3HZq1gEnF4sr5MTkRCirAapw3YaqgiwhWbjJdcqXmPra", nil)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println("transaction digest", tx.GetDigest())
+
+objects, err := client.BatchGetObjects(ctx, []grpc.ObjectRequest{
+    {ObjectID: "0x72f5c6eef73d77de271886219a2543e7c29a33de19a6c69c5cf1899f729c3f17"},
+    {ObjectID: "0x57c9a3d7bdfc965ef4cb402ae0caf4f8535678d009f930910affa599facab39b"},
+}, nil)
+if err != nil {
+    log.Fatal(err)
+}
+for _, res := range objects {
+    if res.Err != nil {
+        log.Fatal(res.Err)
+    }
+    fmt.Printf("object %s balance %d\n", res.Object.GetObjectId(), res.Object.GetBalance())
+}
 ```
 
 For coin selection + transaction execution see `grpc/coin_selection.go` and `grpc/transaction.go` for examples.
 
 ## Testing
 
-Coming soon.
+This repo includes some tests that run against Sui mainnet via gRPC. To run them:
+
+```
+go test ./tests
+```
 
 ## Regenerating Protos
 
