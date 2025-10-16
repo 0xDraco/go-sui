@@ -13,11 +13,13 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
+// GetObjectOptions customises the behaviour of GetObject.
 type GetObjectOptions struct {
 	Version  *uint64
 	ReadMask *fieldmaskpb.FieldMask
 }
 
+// GetObject fetches a single object by ID, optionally specifying a version and field mask.
 func (c *GRPCClient) GetObject(ctx context.Context, objectID string, options *GetObjectOptions, opts ...grpc.CallOption) (*v2.Object, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -51,10 +53,12 @@ func (c *GRPCClient) GetObject(ctx context.Context, objectID string, options *Ge
 	return obj, nil
 }
 
+// GetTransactionOptions customises the behaviour of GetTransaction.
 type GetTransactionOptions struct {
 	ReadMask *fieldmaskpb.FieldMask
 }
 
+// GetTransaction fetches an executed transaction by digest.
 func (c *GRPCClient) GetTransaction(ctx context.Context, digest string, options *GetTransactionOptions, opts ...grpc.CallOption) (*v2.ExecutedTransaction, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -82,6 +86,7 @@ func (c *GRPCClient) GetTransaction(ctx context.Context, digest string, options 
 	return tx, nil
 }
 
+// GetCheckpointBySequence fetches a checkpoint by its sequence number.
 func (c *GRPCClient) GetCheckpointBySequence(ctx context.Context, sequence uint64, readMask *fieldmaskpb.FieldMask, opts ...grpc.CallOption) (*v2.Checkpoint, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -108,6 +113,7 @@ func (c *GRPCClient) GetCheckpointBySequence(ctx context.Context, sequence uint6
 	return checkpoint, nil
 }
 
+// GetCheckpointByDigest fetches a checkpoint by its digest.
 func (c *GRPCClient) GetCheckpointByDigest(ctx context.Context, digest string, readMask *fieldmaskpb.FieldMask, opts ...grpc.CallOption) (*v2.Checkpoint, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -137,6 +143,7 @@ func (c *GRPCClient) GetCheckpointByDigest(ctx context.Context, digest string, r
 	return checkpoint, nil
 }
 
+// GetCurrentEpoch fetches information about the current epoch, optionally restricting the response with a field mask.
 func (c *GRPCClient) GetCurrentEpoch(ctx context.Context, readMask *fieldmaskpb.FieldMask, opts ...grpc.CallOption) (*v2.Epoch, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -161,6 +168,7 @@ func (c *GRPCClient) GetCurrentEpoch(ctx context.Context, readMask *fieldmaskpb.
 	return epoch, nil
 }
 
+// ReferenceGasPrice returns the reference gas price from the current epoch.
 func (c *GRPCClient) ReferenceGasPrice(ctx context.Context, opts ...grpc.CallOption) (uint64, error) {
 	mask := &fieldmaskpb.FieldMask{Paths: []string{"reference_gas_price"}}
 	epoch, err := c.GetCurrentEpoch(ctx, mask, opts...)
@@ -170,16 +178,19 @@ func (c *GRPCClient) ReferenceGasPrice(ctx context.Context, opts ...grpc.CallOpt
 	return epoch.GetReferenceGasPrice(), nil
 }
 
+// ObjectRequest describes a single object fetch to include in BatchGetObjects.
 type ObjectRequest struct {
 	ObjectID string
 	Version  *uint64
 }
 
+// ObjectResult contains either an object or an error for an entry returned by BatchGetObjects.
 type ObjectResult struct {
 	Object *v2.Object
 	Err    error
 }
 
+// BatchGetObjects issues a BatchGetObjects RPC and maps the response to the provided requests.
 func (c *GRPCClient) BatchGetObjects(ctx context.Context, requests []ObjectRequest, readMask *fieldmaskpb.FieldMask, opts ...grpc.CallOption) ([]ObjectResult, error) {
 	if c == nil {
 		return nil, errors.New("nil client")

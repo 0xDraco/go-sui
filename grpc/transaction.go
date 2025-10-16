@@ -14,11 +14,15 @@ import (
 )
 
 var (
-	ErrMissingTransaction         = errors.New("execute transaction request missing transaction")
+	// ErrMissingTransaction indicates the request lacked the required transaction payload.
+	ErrMissingTransaction = errors.New("execute transaction request missing transaction")
+	// ErrResponseMissingTransaction indicates the RPC response omitted the executed transaction payload.
 	ErrResponseMissingTransaction = errors.New("execute transaction response missing transaction data")
-	ErrResponseMissingDigest      = errors.New("execute transaction response missing digest")
+	// ErrResponseMissingDigest indicates the executed transaction did not include its digest.
+	ErrResponseMissingDigest = errors.New("execute transaction response missing digest")
 )
 
+// ExecuteAndWaitOptions configures ExecuteTransactionAndWait semantics.
 type ExecuteAndWaitOptions struct {
 	WaitTimeout             time.Duration
 	ExecuteCallOptions      []grpc.CallOption
@@ -26,12 +30,14 @@ type ExecuteAndWaitOptions struct {
 	SubscriptionRequest     *v2.SubscribeCheckpointsRequest
 }
 
+// ExecuteAndWaitRequest describes a signed transaction to submit via ExecuteSignedTransactionAndWait.
 type ExecuteAndWaitRequest struct {
 	Transaction *v2.Transaction
 	Signatures  []*v2.UserSignature
 	ReadMask    *fieldmaskpb.FieldMask
 }
 
+// CheckpointWaitError wraps the original response alongside an error encountered while waiting for the checkpoint stream.
 type CheckpointWaitError struct {
 	Response *v2.ExecuteTransactionResponse
 	Err      error
@@ -77,6 +83,7 @@ type checkpointResult struct {
 	err        error
 }
 
+// ExecuteSignedTransactionAndWait submits a signed transaction and resolves when it appears in a checkpoint.
 func (c *GRPCClient) ExecuteSignedTransactionAndWait(ctx context.Context, req *ExecuteAndWaitRequest, options *ExecuteAndWaitOptions) (*v2.ExecutedTransaction, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -97,6 +104,7 @@ func (c *GRPCClient) ExecuteSignedTransactionAndWait(ctx context.Context, req *E
 	return tx, nil
 }
 
+// ExecuteTransactionAndWait submits an ExecuteTransactionRequest and blocks until the transaction is observed in a checkpoint or an error occurs.
 func (c *GRPCClient) ExecuteTransactionAndWait(ctx context.Context, request *v2.ExecuteTransactionRequest, options *ExecuteAndWaitOptions) (*v2.ExecuteTransactionResponse, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -208,12 +216,14 @@ func (c *GRPCClient) ExecuteTransactionAndWait(ctx context.Context, request *v2.
 	}
 }
 
+// SimulateTransactionOptions customises behaviour of SimulateTransaction.
 type SimulateTransactionOptions struct {
 	ReadMask       *fieldmaskpb.FieldMask
 	Checks         *v2.SimulateTransactionRequest_TransactionChecks
 	DoGasSelection *bool
 }
 
+// SimulateTransaction executes the SimulateTransaction RPC for the provided transaction.
 func (c *GRPCClient) SimulateTransaction(ctx context.Context, tx *v2.Transaction, options *SimulateTransactionOptions, opts ...grpc.CallOption) (*v2.SimulateTransactionResponse, error) {
 	if c == nil {
 		return nil, errors.New("nil client")

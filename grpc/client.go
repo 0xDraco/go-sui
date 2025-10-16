@@ -29,7 +29,8 @@ type GRPCClient struct {
 	transactionExecutionClient  v2.TransactionExecutionServiceClient
 }
 
-// NewClient dials the given endpoint and constructs a GRPCClient around the resulting connection.
+// NewClient dials the provided endpoint and returns a GRPCClient that wraps the generated protobuf stubs.
+// Callers are responsible for closing the client via Close when they are finished with it.
 func NewClient(ctx context.Context, endpoint string, opts ...Option) (*GRPCClient, error) {
 	if ctx == nil {
 		return nil, errors.New("nil context")
@@ -73,22 +74,22 @@ func NewClient(ctx context.Context, endpoint string, opts ...Option) (*GRPCClien
 	return c, nil
 }
 
-// NewMainnetClient connects to the public mainnet fullnode endpoint.
+// NewMainnetClient constructs a GRPCClient that targets the public Sui mainnet fullnode.
 func NewMainnetClient(ctx context.Context, opts ...Option) (*GRPCClient, error) {
 	return NewClient(ctx, MainnetFullnodeURL, opts...)
 }
 
-// NewTestnetClient connects to the public testnet fullnode endpoint.
+// NewTestnetClient constructs a GRPCClient that targets the public Sui testnet fullnode.
 func NewTestnetClient(ctx context.Context, opts ...Option) (*GRPCClient, error) {
 	return NewClient(ctx, TestnetFullnodeURL, opts...)
 }
 
-// NewDevnetClient connects to the public devnet fullnode endpoint.
+// NewDevnetClient constructs a GRPCClient that targets the public Sui devnet fullnode.
 func NewDevnetClient(ctx context.Context, opts ...Option) (*GRPCClient, error) {
 	return NewClient(ctx, DevnetFullnodeURL, opts...)
 }
 
-// Endpoint returns the original endpoint string used to construct the client.
+// Endpoint reports the remote endpoint the client was created for.
 func (c *GRPCClient) Endpoint() string {
 	if c == nil {
 		return ""
@@ -104,7 +105,7 @@ func (c *GRPCClient) Conn() *grpc.ClientConn {
 	return c.conn
 }
 
-// Close releases the underlying grpc.ClientConn.
+// Close shuts down the underlying gRPC connection.
 func (c *GRPCClient) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
@@ -112,30 +113,37 @@ func (c *GRPCClient) Close() error {
 	return c.conn.Close()
 }
 
+// LedgerClient returns the generated LedgerService client for advanced RPC access.
 func (c *GRPCClient) LedgerClient() v2.LedgerServiceClient {
 	return c.ledgerClient
 }
 
+// MovePackageClient returns the generated MovePackageService client for advanced RPC access.
 func (c *GRPCClient) MovePackageClient() v2.MovePackageServiceClient {
 	return c.movePackageClient
 }
 
+// NameServiceClient returns the generated NameService client for advanced RPC access.
 func (c *GRPCClient) NameServiceClient() v2.NameServiceClient {
 	return c.nameServiceClient
 }
 
+// SignatureVerificationClient returns the generated SignatureVerificationService client for advanced RPC access.
 func (c *GRPCClient) SignatureVerificationClient() v2.SignatureVerificationServiceClient {
 	return c.signatureVerificationClient
 }
 
+// StateClient returns the generated StateService client for advanced RPC access.
 func (c *GRPCClient) StateClient() v2.StateServiceClient {
 	return c.stateClient
 }
 
+// SubscriptionClient returns the generated SubscriptionService client for advanced RPC access.
 func (c *GRPCClient) SubscriptionClient() v2.SubscriptionServiceClient {
 	return c.subscriptionClient
 }
 
+// TransactionExecutionClient returns the generated TransactionExecutionService client for advanced RPC access.
 func (c *GRPCClient) TransactionExecutionClient() v2.TransactionExecutionServiceClient {
 	return c.transactionExecutionClient
 }

@@ -13,8 +13,10 @@ import (
 
 const defaultCoinPageSize = uint32(500)
 
+// ErrInsufficientBalance indicates the requested amount could not be covered by the selected coins.
 var ErrInsufficientBalance = errors.New("insufficient balance to satisfy requested amount")
 
+// CoinSelectionOption customises behaviour of SelectCoins helpers.
 type CoinSelectionOption func(*coinSelectionConfig)
 
 type coinSelectionConfig struct {
@@ -27,6 +29,7 @@ func newCoinSelectionConfig() *coinSelectionConfig {
 	return &coinSelectionConfig{pageSize: defaultCoinPageSize}
 }
 
+// WithCoinPageSize bounds the number of objects requested per page when scanning owned coins.
 func WithCoinPageSize(size uint32) CoinSelectionOption {
 	return func(cfg *coinSelectionConfig) {
 		if size == 0 {
@@ -40,6 +43,7 @@ func WithCoinPageSize(size uint32) CoinSelectionOption {
 	}
 }
 
+// WithCoinExclusions skips any coins whose IDs match the provided list.
 func WithCoinExclusions(ids ...string) CoinSelectionOption {
 	return func(cfg *coinSelectionConfig) {
 		if len(ids) == 0 {
@@ -58,6 +62,7 @@ func WithCoinExclusions(ids ...string) CoinSelectionOption {
 	}
 }
 
+// WithCoinReadMask overrides the FieldMask used when paginating owned coins.
 func WithCoinReadMask(mask *fieldmaskpb.FieldMask) CoinSelectionOption {
 	return func(cfg *coinSelectionConfig) {
 		if mask == nil {
@@ -68,6 +73,7 @@ func WithCoinReadMask(mask *fieldmaskpb.FieldMask) CoinSelectionOption {
 	}
 }
 
+// SelectCoins returns enough Coin<T> objects owned by owner to meet the requested amount.
 func (c *GRPCClient) SelectCoins(ctx context.Context, owner string, coinType string, amount uint64, opts ...CoinSelectionOption) ([]*v2.Object, error) {
 	if c == nil {
 		return nil, errors.New("nil client")
@@ -142,6 +148,7 @@ func (c *GRPCClient) SelectCoins(ctx context.Context, owner string, coinType str
 	return nil, fmt.Errorf("%w: required %d, available %d", ErrInsufficientBalance, amount, total)
 }
 
+// SelectUpToNLargestCoins returns up to n Coin<T> objects owned by owner, preserving the iteration order provided by the RPC.
 func (c *GRPCClient) SelectUpToNLargestCoins(ctx context.Context, owner string, coinType string, n int, opts ...CoinSelectionOption) ([]*v2.Object, error) {
 	if c == nil {
 		return nil, errors.New("nil client")

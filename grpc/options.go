@@ -21,20 +21,21 @@ func defaultConfig() *config {
 	return &config{}
 }
 
+// WithDialOption appends a raw grpc.DialOption to the client configuration.
 func WithDialOption(opt grpc.DialOption) Option {
 	return func(cfg *config) {
 		cfg.dialOptions = append(cfg.dialOptions, opt)
 	}
 }
 
-// overrides the transport credentials used when dialing.
+// WithTransportCredentials overrides the transport credentials used when dialing.
 func WithTransportCredentials(creds credentials.TransportCredentials) Option {
 	return func(cfg *config) {
 		cfg.transportCredentials = creds
 	}
 }
 
-// supplies a custom TLS configuration when TLS is enabled by the endpoint.
+// WithTLSConfig supplies a custom TLS configuration when TLS is enabled by the endpoint.
 func WithTLSConfig(tlsCfg *tls.Config) Option {
 	return func(cfg *config) {
 		if tlsCfg == nil {
@@ -45,7 +46,7 @@ func WithTLSConfig(tlsCfg *tls.Config) Option {
 	}
 }
 
-// forces the client to dial without TLS regardless of the endpoint scheme.
+// WithInsecure forces the client to dial without TLS regardless of the endpoint scheme.
 func WithInsecure() Option {
 	return func(cfg *config) {
 		cfg.transportCredentials = insecure.NewCredentials()
