@@ -1,0 +1,223 @@
+package grpc
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	v2 "github.com/0xdraco/go-sui/proto/sui/rpc/v2"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+)
+
+const defaultCoinPageSize = uint32(500)
+
+var ErrInsufficientBalance = errors.New("insufficient balance to satisfy requested amount")
+
+type CoinSelectionOption func(*coinSelectionConfig)
+
+type coinSelectionConfig struct {
+	pageSize   uint32
+	excludeIDs map[string]struct{}
+	readMask   *fieldmaskpb.FieldMask
+}
+
+func newCoinSelectionConfig() *coinSelectionConfig {
+	return &coinSelectionConfig{pageSize: defaultCoinPageSize}
+}
+
+func WithCoinPageSize(size uint32) CoinSelectionOption {
+	return func(cfg *coinSelectionConfig) {
+		if size == 0 {
+			cfg.pageSize = defaultCoinPageSize
+			return
+		}
+		if size > 1000 {
+			size = 1000
+		}
+		cfg.pageSize = size
+	}
+}
+
+func WithCoinExclusions(ids ...string) CoinSelectionOption {
+	return func(cfg *coinSelectionConfig) {
+		if len(ids) == 0 {
+			return
+		}
+		if cfg.excludeIDs == nil {
+			cfg.excludeIDs = make(map[string]struct{}, len(ids))
+		}
+		for _, id := range ids {
+			normalized := normalizeObjectID(id)
+			if normalized == "" {
+				continue
+			}
+			cfg.excludeIDs[normalized] = struct{}{}
+		}
+	}
+}
+
+func WithCoinReadMask(mask *fieldmaskpb.FieldMask) CoinSelectionOption {
+	return func(cfg *coinSelectionConfig) {
+		if mask == nil {
+			cfg.readMask = nil
+			return
+		}
+		cfg.readMask = cloneFieldMask(mask)
+	}
+}
+
+func (c *GRPCClient) SelectCoins(ctx context.Context, owner string, coinType string, amount uint64, opts ...CoinSelectionOption) ([]*v2.Object, error) {
+	if c == nil {
+		return nil, errors.New("nil client")
+	}
+	if ctx == nil {
+		return nil, errors.New("nil context")
+	}
+	if owner == "" {
+		return nil, errors.New("owner address is empty")
+	}
+	if coinType == "" {
+		return nil, errors.New("coin type is empty")
+	}
+
+	cfg := newCoinSelectionConfig()
+	for _, opt := range opts {
+		if opt != nil {
+			opt(cfg)
+		}
+	}
+
+	req := &v2.ListOwnedObjectsRequest{
+		Owner:      stringPtr(owner),
+		ObjectType: stringPtr(coinType),
+	}
+	if cfg.pageSize > 0 {
+		size := cfg.pageSize
+		req.PageSize = &size
+	}
+	req.ReadMask = ensureFieldMaskPaths(cfg.readMask,
+		"object_id", "version", "digest", "balance", "owner",
+	)
+
+	pager, err := c.OwnedObjectsPager(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		total    uint64
+		selected []*v2.Object
+	)
+
+	for {
+		batch, err := pager.Next(ctx)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, err
+		}
+		for _, obj := range batch {
+			if obj == nil {
+				continue
+			}
+			if shouldExclude(cfg.excludeIDs, obj.GetObjectId()) {
+				continue
+			}
+			balance := obj.GetBalance()
+			if total+balance < total {
+				total = ^uint64(0)
+			} else {
+				total += balance
+			}
+			selected = append(selected, obj)
+			if total >= amount {
+				return selected, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("%w: required %d, available %d", ErrInsufficientBalance, amount, total)
+}
+
+func (c *GRPCClient) SelectUpToNLargestCoins(ctx context.Context, owner string, coinType string, n int, opts ...CoinSelectionOption) ([]*v2.Object, error) {
+	if c == nil {
+		return nil, errors.New("nil client")
+	}
+	if ctx == nil {
+		return nil, errors.New("nil context")
+	}
+	if n <= 0 {
+		return nil, nil
+	}
+	if owner == "" {
+		return nil, errors.New("owner address is empty")
+	}
+	if coinType == "" {
+		return nil, errors.New("coin type is empty")
+	}
+
+	cfg := newCoinSelectionConfig()
+	for _, opt := range opts {
+		if opt != nil {
+			opt(cfg)
+		}
+	}
+
+	req := &v2.ListOwnedObjectsRequest{
+		Owner:      stringPtr(owner),
+		ObjectType: stringPtr(coinType),
+	}
+	if cfg.pageSize > 0 {
+		size := cfg.pageSize
+		req.PageSize = &size
+	}
+	req.ReadMask = ensureFieldMaskPaths(cfg.readMask,
+		"object_id", "version", "digest", "balance", "owner",
+	)
+
+	pager, err := c.OwnedObjectsPager(req)
+	if err != nil {
+		return nil, err
+	}
+
+	selected := make([]*v2.Object, 0, n)
+
+	for len(selected) < n {
+		batch, err := pager.Next(ctx)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, err
+		}
+		for _, obj := range batch {
+			if obj == nil {
+				continue
+			}
+			if shouldExclude(cfg.excludeIDs, obj.GetObjectId()) {
+				continue
+			}
+			selected = append(selected, obj)
+			if len(selected) >= n {
+				break
+			}
+		}
+	}
+
+	return selected, nil
+}
+
+func shouldExclude(exclusions map[string]struct{}, id string) bool {
+	if len(exclusions) == 0 {
+		return false
+	}
+	_, ok := exclusions[normalizeObjectID(id)]
+	return ok
+}
+
+func normalizeObjectID(id string) string {
+	return strings.ToLower(strings.TrimSpace(id))
+}
