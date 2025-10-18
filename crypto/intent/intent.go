@@ -1,3 +1,9 @@
+// Package intent implements Sui's domain-separated intent messaging. An intent
+// message prepends a 3-byte (scope, version, app id) tag to the BCS-serialized
+// payload; every signature in Sui hashes and signs that composite so scopes
+// cannot be replayed across payload types, versions, or applications.
+//
+// Ref: https://docs.sui.io/concepts/cryptography/transaction-auth/intent-signing
 package intent
 
 import (
@@ -5,14 +11,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fardream/go-bcs/bcs"
+	"github.com/iotaledger/bcs-go"
 	"golang.org/x/crypto/blake2b"
-)
-
-type IntentVersion uint8
-
-const (
-	IntentVersionV0 IntentVersion = 0
 )
 
 var (
@@ -22,6 +22,15 @@ var (
 	errInvalidIntentVers   = errors.New("intent: invalid version byte")
 )
 
+// IntentVersion identifies the serialization layout that signers are expected
+// to use. If the underlying struct or enum format changes, bumping the version
+// prevents old and new payloads from colliding.
+type IntentVersion uint8
+
+const (
+	IntentVersionV0 IntentVersion = 0
+)
+
 func (v IntentVersion) Validate() error {
 	if v != IntentVersionV0 {
 		return errInvalidIntentVers
@@ -29,6 +38,11 @@ func (v IntentVersion) Validate() error {
 	return nil
 }
 
+// AppID namespaces intents across independent applications (Sui, Narwhal,
+// etc.), ensuring signatures from one domain cannot be replayed in another
+// when keys are reused.
+//
+// Our current application is Sui, so we only have one app id.
 type AppID uint8
 
 const (
@@ -39,9 +53,13 @@ func (a AppID) Validate() error {
 	if a != AppIDSui {
 		return errInvalidIntentAppID
 	}
+
 	return nil
 }
 
+// IntentScope identifies the high-level payload category being signed. Each
+// scope has its own byte so signatures cannot be replayed across different
+// message types (e.g., transaction data vs. personal messages).
 type IntentScope uint8
 
 const (
@@ -67,6 +85,8 @@ func (s IntentScope) Validate() error {
 	}
 }
 
+// Intent is the three-byte domain separator (scope, version, application id)
+// that prefixes every intent message.
 type Intent struct {
 	Scope   IntentScope
 	Version IntentVersion
@@ -74,11 +94,7 @@ type Intent struct {
 }
 
 func DefaultIntent() Intent {
-	return Intent{
-		Scope:   IntentScopeTransactionData,
-		Version: IntentVersionV0,
-		AppID:   AppIDSui,
-	}
+	return Intent{Scope: IntentScopeTransactionData, Version: IntentVersionV0, AppID: AppIDSui}
 }
 
 func (i Intent) WithAppID(appID AppID) Intent {
@@ -91,10 +107,6 @@ func (i Intent) WithScope(scope IntentScope) Intent {
 	return i
 }
 
-func (i Intent) Bytes() [3]byte {
-	return [3]byte{byte(i.Scope), byte(i.Version), byte(i.AppID)}
-}
-
 func (i Intent) Validate() error {
 	if err := i.Scope.Validate(); err != nil {
 		return err
@@ -105,53 +117,50 @@ func (i Intent) Validate() error {
 	return i.AppID.Validate()
 }
 
+func (i Intent) Bytes() [3]byte {
+	return [3]byte{byte(i.Scope), byte(i.Version), byte(i.AppID)}
+}
+
 func ParseIntent(hexEncoded string) (Intent, error) {
 	raw, err := hex.DecodeString(hexEncoded)
 	if err != nil {
 		return Intent{}, fmt.Errorf("intent: decode hex: %w", err)
 	}
-	intent, err := IntentFromBytes(raw)
-	if err != nil {
-		return Intent{}, err
-	}
-	return intent, nil
+
+	return IntentFromBytes(raw)
 }
 
 func IntentFromBytes(raw []byte) (Intent, error) {
 	if len(raw) != 3 {
 		return Intent{}, errInvalidIntentLength
 	}
-	intent := Intent{
-		Scope:   IntentScope(raw[0]),
-		Version: IntentVersion(raw[1]),
-		AppID:   AppID(raw[2]),
-	}
+	intent := Intent{Scope: IntentScope(raw[0]), Version: IntentVersion(raw[1]), AppID: AppID(raw[2])}
 	if err := intent.Validate(); err != nil {
 		return Intent{}, err
 	}
 	return intent, nil
 }
 
+// IntentMessage pairs an intent with a BCS-serializable value.
 type IntentMessage[T any] struct {
 	Intent Intent
 	Value  T
 }
 
 func NewIntentMessage[T any](intent Intent, value T) IntentMessage[T] {
-	return IntentMessage[T]{
-		Intent: intent,
-		Value:  value,
-	}
+	return IntentMessage[T]{Intent: intent, Value: value}
 }
 
 func (m IntentMessage[T]) MarshalBCS() ([]byte, error) {
 	if err := m.Intent.Validate(); err != nil {
 		return nil, err
 	}
-	valueBytes, err := bcs.Marshal(m.Value)
+
+	valueBytes, err := bcs.Marshal(&m.Value)
 	if err != nil {
 		return nil, fmt.Errorf("intent: marshal value: %w", err)
 	}
+
 	intentBytes := m.Intent.Bytes()
 	encoded := make([]byte, 0, len(valueBytes)+len(intentBytes))
 	encoded = append(encoded, intentBytes[:]...)
@@ -164,6 +173,7 @@ func HashIntentMessage[T any](message IntentMessage[T]) ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, err
 	}
+
 	return blake2b.Sum256(serialized), nil
 }
 
