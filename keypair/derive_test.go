@@ -1,6 +1,7 @@
 package keypair
 
 import (
+	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -267,38 +268,87 @@ func TestFromBech32(t *testing.T) {
 	}
 }
 
-func TestDeriveFromMnemonicAlternatePaths(t *testing.T) {
+func TestDeriveFromMnemonicVectors(t *testing.T) {
 	tests := []struct {
-		name     string
-		scheme   keychain.Scheme
-		mnemonic string
-		path     string
-		wantAddr string
-		wantPub  string
+		name        string
+		scheme      keychain.Scheme
+		mnemonic    string
+		path        string
+		wantAddr    string
+		wantPubFlag string
+		wantPubRaw  string
 	}{
 		{
-			name:     "ed25519_index1",
-			scheme:   keychain.SchemeEd25519,
-			mnemonic: "ship host undo vacant also squeeze current alarm shift blush travel supply",
-			path:     "m/44'/784'/0'/0'/1'",
-			wantAddr: "0x9c79fa2ae665bba59b1533c2cb378c7d8462d59f6b30658465c765458b15e63e",
-			wantPub:  "AJCtbjJjXl2IEynolldZeXLqe2wPVPCW/O1rnZheR8Rj",
+			name:        "ed25519_index1",
+			scheme:      keychain.SchemeEd25519,
+			mnemonic:    "ship host undo vacant also squeeze current alarm shift blush travel supply",
+			path:        "m/44'/784'/0'/0'/1'",
+			wantAddr:    "0x9c79fa2ae665bba59b1533c2cb378c7d8462d59f6b30658465c765458b15e63e",
+			wantPubFlag: "AJCtbjJjXl2IEynolldZeXLqe2wPVPCW/O1rnZheR8Rj",
 		},
 		{
-			name:     "secp256k1_change1",
-			scheme:   keychain.SchemeSecp256k1,
-			mnemonic: "decline core depend top judge surprise paper vacant caution smoke gospel year",
-			path:     "m/54'/784'/0'/1/0",
-			wantAddr: "0x8b280584e76d1f6783a9051110be6156a876d185f53a758a976edf9d5c17f13b",
-			wantPub:  "AQKVT35cLt7dcQD6tM023nR2q4e3IqUhQ6rYC2bRyUOxCg==",
+			name:        "secp256k1_change1",
+			scheme:      keychain.SchemeSecp256k1,
+			mnemonic:    "decline core depend top judge surprise paper vacant caution smoke gospel year",
+			path:        "m/54'/784'/0'/1/0",
+			wantAddr:    "0x8b280584e76d1f6783a9051110be6156a876d185f53a758a976edf9d5c17f13b",
+			wantPubFlag: "AQKVT35cLt7dcQD6tM023nR2q4e3IqUhQ6rYC2bRyUOxCg==",
 		},
 		{
-			name:     "secp256r1_index1",
-			scheme:   keychain.SchemeSecp256r1,
-			mnemonic: "neutral cargo public impulse smile lock duck ignore car such remain pattern",
-			path:     "m/74'/784'/0'/0/1",
-			wantAddr: "0x15407b5322ab8a2e24787ecf1703286db4d2951c3f793a4fb89b0ef2b7f6b80e",
-			wantPub:  "AgIzlaev1QM+UFS4kEYGqMAODU491KAnSD+Eaw0ZcL9fEw==",
+			name:        "secp256r1_index1",
+			scheme:      keychain.SchemeSecp256r1,
+			mnemonic:    "neutral cargo public impulse smile lock duck ignore car such remain pattern",
+			path:        "m/74'/784'/0'/0/1",
+			wantAddr:    "0x15407b5322ab8a2e24787ecf1703286db4d2951c3f793a4fb89b0ef2b7f6b80e",
+			wantPubFlag: "AgIzlaev1QM+UFS4kEYGqMAODU491KAnSD+Eaw0ZcL9fEw==",
+		},
+		{
+			name:       "ts_ed25519_1",
+			scheme:     keychain.SchemeEd25519,
+			mnemonic:   "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
+			path:       "m/44'/784'/0'/0'/0'",
+			wantAddr:   "0xa2d14fad60c56049ecf75246a481934691214ce413e6a8ae2fe6834c173a6133",
+			wantPubRaw: "ImR/7u82MGC9QgWhZxoV8QoSNnZZGLG19jjYLzPPxGk=",
+		},
+		{
+			name:       "ts_ed25519_2",
+			scheme:     keychain.SchemeEd25519,
+			mnemonic:   "require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level",
+			path:       "m/44'/784'/0'/0'/0'",
+			wantAddr:   "0x1ada6e6f3f3e4055096f606c746690f1108fcc2ca479055cc434a3e1d3f758aa",
+			wantPubRaw: "vG6hEnkYNIpdmWa/WaLivd1FWBkxG+HfhXkyWgs9uP4=",
+		},
+		{
+			name:       "ts_ed25519_3",
+			scheme:     keychain.SchemeEd25519,
+			mnemonic:   "organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake",
+			path:       "m/44'/784'/0'/0'/0'",
+			wantAddr:   "0xe69e896ca10f5a77732769803cc2b5707f0ab9d4407afb5e4b4464b89769af14",
+			wantPubRaw: "arEzeF7Uu90jP4Sd+Or17c+A9kYviJpCEQAbEt0FHbU=",
+		},
+		{
+			name:       "ts_secp256k1_1",
+			scheme:     keychain.SchemeSecp256k1,
+			mnemonic:   "film crazy soon outside stand loop subway crumble thrive popular green nuclear struggle pistol arm wife phrase warfare march wheat nephew ask sunny firm",
+			path:       "m/54'/784'/0'/0/0",
+			wantAddr:   "0x9e8f732575cc5386f8df3c784cd3ed1b53ce538da79926b2ad54dcc1197d2532",
+			wantPubRaw: "Ar2Vs2ei2HgaCIvcsAVAZ6bKYXhDfRTlF432p8Wn4lsL",
+		},
+		{
+			name:       "ts_secp256k1_2",
+			scheme:     keychain.SchemeSecp256k1,
+			mnemonic:   "require decline left thought grid priority false tiny gasp angle royal system attack beef setup reward aunt skill wasp tray vital bounce inflict level",
+			path:       "m/54'/784'/0'/0/0",
+			wantAddr:   "0x9fd5a804ed6b46d36949ff7434247f0fd594673973ece24aede6b86a7b5dae01",
+			wantPubRaw: "A5IcrmWDxl0J/4MNkrtE1AvwiLZiqih9tjttcGlafw+m",
+		},
+		{
+			name:       "ts_secp256k1_3",
+			scheme:     keychain.SchemeSecp256k1,
+			mnemonic:   "organ crash swim stick traffic remember army arctic mesh slice swear summer police vast chaos cradle squirrel hood useless evidence pet hub soap lake",
+			path:       "m/54'/784'/0'/0/0",
+			wantAddr:   "0x60287d7c38dee783c2ab1077216124011774be6b0764d62bd05f32c88979d5c5",
+			wantPubRaw: "AuEiECTZwyHhqStzpO/RNBXO89/Wa8oc4BtoneKnl6h8",
 		},
 	}
 
@@ -316,8 +366,15 @@ func TestDeriveFromMnemonicAlternatePaths(t *testing.T) {
 			if addr != tc.wantAddr {
 				t.Fatalf("addr mismatch: got %s want %s", addr, tc.wantAddr)
 			}
-			if got := kp.PublicKeyBase64(); got != tc.wantPub {
-				t.Fatalf("pub mismatch: got %s want %s", got, tc.wantPub)
+			if tc.wantPubFlag != "" {
+				if got := kp.PublicKeyBase64(); got != tc.wantPubFlag {
+					t.Fatalf("flagged pub mismatch: got %s want %s", got, tc.wantPubFlag)
+				}
+			}
+			if tc.wantPubRaw != "" {
+				if got := base64.StdEncoding.EncodeToString(kp.PublicKeyBytes()); got != tc.wantPubRaw {
+					t.Fatalf("raw pub mismatch: got %s want %s", got, tc.wantPubRaw)
+				}
 			}
 		})
 	}
