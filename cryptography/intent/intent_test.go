@@ -6,12 +6,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/0xdraco/sui-go-sdk/types"
 	"github.com/iotaledger/bcs-go"
 	"golang.org/x/crypto/blake2b"
 )
 
 func TestIntentMessageSerializationWithPersonalMessage(t *testing.T) {
-	message := PersonalMessage{Message: []byte("Hello")}
+	message := types.PersonalMessage{Message: []byte("Hello")}
 	bcsMessage, err := bcs.Marshal(&message)
 	if err != nil {
 		t.Fatalf("marshal personal message: %v", err)

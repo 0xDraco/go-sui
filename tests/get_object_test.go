@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	sui "github.com/0xdraco/go-sui/grpc"
+	sui "github.com/0xdraco/sui-go-sdk/grpc"
 )
 
 func TestGetObject(t *testing.T) {

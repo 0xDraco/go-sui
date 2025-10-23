@@ -3,10 +3,10 @@ package keypair
 import (
 	"fmt"
 
-	ed25519keys "github.com/0xdraco/go-sui/crypto/ed25519"
-	secp256k1keys "github.com/0xdraco/go-sui/crypto/secp256k1"
-	secp256r1keys "github.com/0xdraco/go-sui/crypto/secp256r1"
-	"github.com/0xdraco/go-sui/keychain"
+	ed25519keys "github.com/0xdraco/sui-go-sdk/cryptography/ed25519"
+	secp256k1keys "github.com/0xdraco/sui-go-sdk/cryptography/secp256k1"
+	secp256r1keys "github.com/0xdraco/sui-go-sdk/cryptography/secp256r1"
+	"github.com/0xdraco/sui-go-sdk/keychain"
 )
 
 func DeriveFromMnemonic(s keychain.Scheme, mnemonic, passphrase, path string) (Keypair, error) {

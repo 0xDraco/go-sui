@@ -1,10 +1,11 @@
+package intent
+
 // Package intent implements Sui's domain-separated intent messaging. An intent
 // message prepends a 3-byte (scope, version, app id) tag to the BCS-serialized
 // payload; every signature in Sui hashes and signs that composite so scopes
 // cannot be replayed across payload types, versions, or applications.
 //
 // Ref: https://docs.sui.io/concepts/cryptography/transaction-auth/intent-signing
-package intent
 
 import (
 	"encoding/hex"
@@ -175,8 +176,4 @@ func HashIntentMessage[T any](message IntentMessage[T]) ([32]byte, error) {
 	}
 
 	return blake2b.Sum256(serialized), nil
-}
-
-type PersonalMessage struct {
-	Message []byte
 }

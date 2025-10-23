@@ -1,6 +1,10 @@
 package keychain
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+	"strings"
+)
 
 type Scheme uint8
 
@@ -37,6 +41,19 @@ func (s Scheme) Purpose() uint32 {
 		return 74
 	default:
 		return 0
+	}
+}
+
+func (scheme Scheme) Label() string {
+	switch scheme {
+	case SchemeEd25519:
+		return "ed25519"
+	case SchemeSecp256k1:
+		return "secp256k1"
+	case SchemeSecp256r1:
+		return "secp256r1"
+	default:
+		return strings.ToLower((reflect.TypeOf(scheme).Name()))
 	}
 }
 

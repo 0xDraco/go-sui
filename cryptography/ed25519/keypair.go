@@ -1,13 +1,15 @@
 package ed25519
 
 import (
+	"bytes"
 	cryptoed25519 "crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 
-	"github.com/0xdraco/go-sui/keychain"
+	"github.com/0xdraco/sui-go-sdk/cryptography/personalmsg"
+	"github.com/0xdraco/sui-go-sdk/keychain"
 )
 
 const seedSize = 32
@@ -54,7 +56,52 @@ func (k Keypair) SecretKeyBytes() []byte {
 	return out
 }
 
-// Generate produces a fresh Ed25519 keypair (based on crypto/rand).
+func (k Keypair) signData(data []byte) ([]byte, error) {
+	if len(k.PrivateKey) != cryptoed25519.PrivateKeySize {
+		return nil, fmt.Errorf("ed25519: invalid private key length %d", len(k.PrivateKey))
+	}
+
+	signature := cryptoed25519.Sign(k.PrivateKey, data)
+	return append([]byte(nil), signature...), nil
+}
+
+func (k Keypair) verifyDigest(digest [32]byte, signature []byte) error {
+	if len(k.PrivateKey) != cryptoed25519.PrivateKeySize {
+		return fmt.Errorf("ed25519: invalid private key length %d", len(k.PrivateKey))
+	}
+
+	pub := k.PublicKeyBytes()
+	expected := 1 + cryptoed25519.SignatureSize + len(pub)
+	if len(signature) != expected {
+		return fmt.Errorf("ed25519: invalid signature length %d", len(signature))
+	}
+	if signature[0] != keychain.SchemeEd25519.AddressFlag() {
+		return fmt.Errorf("ed25519: unexpected signature flag 0x%02x", signature[0])
+	}
+	if !bytes.Equal(signature[1+cryptoed25519.SignatureSize:], pub) {
+		return fmt.Errorf("ed25519: mismatched public key")
+	}
+	rawSig := signature[1 : 1+cryptoed25519.SignatureSize]
+	if !cryptoed25519.Verify(k.PublicKey, digest[:], rawSig) {
+		return fmt.Errorf("ed25519: verification failed")
+	}
+
+	return nil
+}
+
+func (k Keypair) SignPersonalMessage(message []byte) ([]byte, error) {
+	return personalmsg.Sign(
+		keychain.SchemeEd25519,
+		message,
+		k.PublicKeyBytes(),
+		k.signData,
+	)
+}
+
+func (k Keypair) VerifyPersonalMessage(message []byte, signature []byte) error {
+	return personalmsg.Verify(keychain.SchemeEd25519, message, signature, k.verifyDigest)
+}
+
 func Generate() (*Keypair, error) {
 	pub, priv, err := cryptoed25519.GenerateKey(rand.Reader)
 	if err != nil {

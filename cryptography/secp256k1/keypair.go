@@ -1,12 +1,16 @@
 package secp256k1
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"math/big"
 
-	"github.com/0xdraco/go-sui/keychain"
+	"github.com/0xdraco/sui-go-sdk/cryptography/personalmsg"
+	"github.com/0xdraco/sui-go-sdk/keychain"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	secp256k1ecdsa "github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 )
 
 type Keypair struct {
@@ -39,6 +43,75 @@ func (k Keypair) SecretKeyBytes() []byte {
 func (k Keypair) PublicKeyBase64() string {
 	payload := append([]byte{keychain.SchemeSecp256k1.AddressFlag()}, k.PublicKeyBytes()...)
 	return base64.StdEncoding.EncodeToString(payload)
+}
+
+func (k Keypair) signData(data []byte) ([]byte, error) {
+	if k.PrivateKey == nil {
+		return nil, fmt.Errorf("secp256k1: private key is nil")
+	}
+
+	hash := sha256.Sum256(data)
+	sig := secp256k1ecdsa.Sign(k.PrivateKey, hash[:])
+	if sig == nil {
+		return nil, fmt.Errorf("secp256k1: signing failed")
+	}
+
+	rScalar := sig.R()
+	sScalar := sig.S()
+	if (&sScalar).IsOverHalfOrder() {
+		(&sScalar).Negate()
+	}
+
+	var rBytes, sBytes [32]byte
+	(&rScalar).PutBytes(&rBytes)
+	(&sScalar).PutBytes(&sBytes)
+
+	out := make([]byte, 64)
+	copy(out[:32], rBytes[:])
+	copy(out[32:], sBytes[:])
+	return out, nil
+}
+
+func (k Keypair) verifyDigest(digest [32]byte, signature []byte) error {
+	pub := k.PublicKeyBytes()
+	expectedLen := 1 + 64 + len(pub)
+	if len(signature) != expectedLen {
+		return fmt.Errorf("secp256k1: invalid signature length %d", len(signature))
+	}
+	if signature[0] != keychain.SchemeSecp256k1.AddressFlag() {
+		return fmt.Errorf("secp256k1: unexpected signature flag 0x%02x", signature[0])
+	}
+	if !bytes.Equal(signature[65:], pub) {
+		return fmt.Errorf("secp256k1: mismatched public key")
+	}
+
+	var rScalar, sScalar secp256k1.ModNScalar
+	if overflow := rScalar.SetByteSlice(signature[1:33]); overflow {
+		return fmt.Errorf("secp256k1: invalid R component")
+	}
+	if overflow := sScalar.SetByteSlice(signature[33:65]); overflow {
+		return fmt.Errorf("secp256k1: invalid S component")
+	}
+
+	sig := secp256k1ecdsa.NewSignature(&rScalar, &sScalar)
+	hash := sha256.Sum256(digest[:])
+	if !sig.Verify(hash[:], k.PublicKey) {
+		return fmt.Errorf("secp256k1: verification failed")
+	}
+	return nil
+}
+
+func (k Keypair) SignPersonalMessage(message []byte) ([]byte, error) {
+	return personalmsg.Sign(
+		keychain.SchemeSecp256k1,
+		message,
+		k.PublicKeyBytes(),
+		k.signData,
+	)
+}
+
+func (k Keypair) VerifyPersonalMessage(message []byte, signature []byte) error {
+	return personalmsg.Verify(keychain.SchemeSecp256k1, message, signature, k.verifyDigest)
 }
 
 func Generate() (*Keypair, error) {

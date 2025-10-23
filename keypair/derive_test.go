@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/0xdraco/go-sui/keychain"
+	"github.com/0xdraco/sui-go-sdk/keychain"
 )
 
 const testMnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
@@ -15,10 +15,10 @@ func TestParseAndValidatePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse path: %v", err)
 	}
-	if err := path.ValidateForScheme(keychain.SchemeEd25519); err != nil {
+	if err = path.ValidateForScheme(keychain.SchemeEd25519); err != nil {
 		t.Fatalf("validate ed25519 path: %v", err)
 	}
-	if err := path.ValidateForScheme(keychain.SchemeSecp256k1); err == nil {
+	if err = path.ValidateForScheme(keychain.SchemeSecp256k1); err == nil {
 		t.Fatalf("expected validation failure for secp256k1 hardened change")
 	}
 
